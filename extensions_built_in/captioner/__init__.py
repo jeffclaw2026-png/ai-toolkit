@@ -81,3 +81,14 @@ AI_TOOLKIT_EXTENSIONS = [
     Qwen25OmniCaptionerExtension,
     Ideogram4CaptionerExtension,
 ]
+
+
+class VllmApiCaptionerExtension(Extension):
+    uid = "VllmApiCaptioner"
+    name = "vLLM API Captioner (remote, no download)"
+
+    @classmethod
+    def get_process(cls):
+        from .VllmApiCaptioner import VllmApiCaptioner
+
+        return VllmApiCaptioner

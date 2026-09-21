@@ -148,6 +148,26 @@ export const captionerTypes: CaptionOption[] = [
         ],
     },
     {
+        name: 'VllmApiCaptioner',
+        label: 'vLLM API (remote, no download)',
+        group: 'image',
+        defaults: {
+            'config.process[0].caption.model_name_or_path': ['unsloth/Qwen3.8-27B-NVFP4', defaultNameOrPath],
+            'config.process[0].caption.extensions': [extensionsImage, defaultExtensions],
+            'config.process[0].caption.caption_prompt': [defaultImageCaptionPrompt, undefined],
+            'config.process[0].caption.max_res': [1024, undefined],
+            'config.process[0].caption.max_new_tokens': [512, undefined],
+        },
+        name_or_path_options: [
+            { value: 'unsloth/Qwen3.8-27B-NVFP4', label: 'unsloth/Qwen3.8-27B-NVFP4 (local vLLM :8000)' },
+        ],
+        additionalSections: [
+            'caption.caption_prompt',
+            'caption.max_res',
+            'caption.max_new_tokens',
+        ],
+    },
+    {
         name: 'Qwen3VLCaptioner',
         label: 'Qwen3-VL',
         group: 'image',
