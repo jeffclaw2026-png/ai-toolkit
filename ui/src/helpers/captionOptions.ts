@@ -166,6 +166,7 @@ export const captionerTypes: CaptionOption[] = [
             { value: 'huihui-ai/Huihui-Qwen3-VL-8B-Instruct-abliterated', label: 'huihui-ai/Huihui-Qwen3-VL-8B-Instruct-abliterated' },
             { value: 'Qwen/Qwen3-VL-30B-A3B-Instruct', label: 'Qwen/Qwen3-VL-30B-A3B-Instruct' },
             { value: 'Qwen/Qwen3.6-27B', label: 'Qwen/Qwen3.6-27B' },
+            { value: 'Qwen/Qwen3.8-27B', label: 'Qwen/Qwen3.8-27B (55GB, slow but smartest)' },
             { value: 'huihui-ai/Huihui-Qwen3.6-27B-abliterated', label: 'huihui-ai/Huihui-Qwen3.6-27B-abliterated' },
         ],
         additionalSections: [
