@@ -73,14 +73,6 @@ class Ideogram4CaptionerExtension(Extension):
         return Ideogram4Captioner
 
 
-AI_TOOLKIT_EXTENSIONS = [
-    AceStepCaptionerExtension,
-    MossMusicCaptionerExtension,
-    Qwen3VLCaptionerExtension,
-    Qwen3OmniCaptionerExtension,
-    Qwen25OmniCaptionerExtension,
-    Ideogram4CaptionerExtension,
-]
 
 
 class VllmApiCaptionerExtension(Extension):
@@ -92,3 +84,13 @@ class VllmApiCaptionerExtension(Extension):
         from .VllmApiCaptioner import VllmApiCaptioner
 
         return VllmApiCaptioner
+
+AI_TOOLKIT_EXTENSIONS = [
+    VllmApiCaptionerExtension,
+    AceStepCaptionerExtension,
+    MossMusicCaptionerExtension,
+    Qwen3VLCaptionerExtension,
+    Qwen3OmniCaptionerExtension,
+    Qwen25OmniCaptionerExtension,
+    Ideogram4CaptionerExtension,
+]
