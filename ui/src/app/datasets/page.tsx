@@ -18,6 +18,52 @@ export default function Datasets() {
   const { datasets, status, refreshDatasets } = useDatasetList();
   const [newDatasetName, setNewDatasetName] = useState('');
   const [isNewDatasetModalOpen, setIsNewDatasetModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [lrUrl, setLrUrl] = useState('http://192.168.50.113:8300');
+  const [lrDatasets, setLrDatasets] = useState<string[]>([]);
+  const [lrSelected, setLrSelected] = useState('');
+  const [lrIncludeCaptions, setLrIncludeCaptions] = useState(true);
+  const [lrLoading, setLrLoading] = useState(false);
+  const [lrStatus, setLrStatus] = useState('');
+
+  const openImportModal = async () => {
+    setIsImportModalOpen(true);
+    setLrStatus('Loading datasets from LoRA Review...');
+    setLrDatasets([]);
+    setLrSelected('');
+    try {
+      const res = await fetch(`/api/datasets/lorareview-list?url=${encodeURIComponent(lrUrl)}`);
+      const data = await res.json();
+      if (data.datasets) {
+        setLrDatasets(data.datasets.map((d: any) => d.name));
+        setLrStatus('');
+      } else {
+        setLrStatus(data.error || 'Failed to list LoRA Review datasets');
+      }
+    } catch (e: any) {
+      setLrStatus('Cannot reach LoRA Review: ' + e.message);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!lrSelected) return;
+    setLrLoading(true);
+    setLrStatus('Importing (keep-status images)... this may take a minute for large datasets.');
+    try {
+      const res = await apiClient.post('/api/datasets/import-lorareview', {
+        url: lrUrl,
+        dataset: lrSelected,
+        includeCaptions: lrIncludeCaptions,
+      });
+      const data = res.data;
+      setLrStatus(`Imported ${data.bytes ? Math.round(data.bytes / 1024 / 1024) : '?'} MB into "${data.dataset}" (${data.captions} captions).`);
+      refreshDatasets();
+    } catch (e: any) {
+      setLrStatus('Import failed: ' + (e?.response?.data?.error || e.message));
+    } finally {
+      setLrLoading(false);
+    }
+  };
 
   // Transform datasets array into rows with objects
   const tableRows = datasets.map(dataset => ({
@@ -119,6 +165,13 @@ export default function Datasets() {
         <div className="flex-1"></div>
         <div>
           <Button
+            className="text-white bg-emerald-700 px-2 sm:px-3 py-1 rounded-md hover:bg-emerald-600 transition-colors text-sm sm:text-base whitespace-nowrap mr-2"
+            onClick={() => openImportModal()}
+          >
+            <span className="sm:hidden">Import</span>
+            <span className="hidden sm:inline">Import from LoRA Review</span>
+          </Button>
+          <Button
             className="text-white bg-slate-600 px-2 sm:px-3 py-1 rounded-md hover:bg-slate-500 transition-colors text-sm sm:text-base whitespace-nowrap"
             onClick={() => openNewDatasetModal()}
           >
@@ -168,6 +221,73 @@ export default function Datasets() {
               </button>
             </div>
           </form>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={() => !lrLoading && setIsImportModalOpen(false)}
+        title="Import from LoRA Review"
+        size="md"
+      >
+        <div className="space-y-4 text-gray-200">
+          <div className="text-sm text-gray-400">
+            Imports keep-status images (and merged captions) from a LoRA Dataset Review webapp into a new dataset here.
+          </div>
+          <TextInput label="LoRA Review URL" value={lrUrl} onChange={value => { setLrUrl(value); }} />
+          <button
+            type="button"
+            className="rounded-md bg-gray-700 px-3 py-1 text-gray-200 hover:bg-gray-600 text-sm"
+            onClick={() => openImportModal()}
+          >
+            Refresh list
+          </button>
+
+          {lrStatus && <div className="text-sm text-amber-300">{lrStatus}</div>}
+
+          {lrDatasets.length > 0 && (
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Select dataset</label>
+              <select
+                className="w-full rounded-md bg-gray-800 border border-gray-600 px-3 py-2 text-gray-200"
+                value={lrSelected}
+                onChange={e => setLrSelected(e.target.value)}
+              >
+                <option value="">-- choose --</option>
+                {lrDatasets.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <label className="flex items-center space-x-2 text-sm text-gray-300">
+            <input
+              type="checkbox"
+              checked={lrIncludeCaptions}
+              onChange={e => setLrIncludeCaptions(e.target.checked)}
+            />
+            <span>Include captions (.txt sidecars)</span>
+          </label>
+
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              className="rounded-md bg-gray-700 px-4 py-2 text-gray-200 hover:bg-gray-600"
+              onClick={() => setIsImportModalOpen(false)}
+              disabled={lrLoading}
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-500 disabled:opacity-50"
+              onClick={() => handleImport()}
+              disabled={lrLoading || !lrSelected}
+            >
+              {lrLoading ? 'Importing...' : 'Import'}
+            </button>
+          </div>
         </div>
       </Modal>
     </>
