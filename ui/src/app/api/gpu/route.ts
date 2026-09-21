@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
+import fs from 'fs';
 import { cached } from '@/server/apiCache';
 import { loadMacstats } from '@/server/macstats';
 
@@ -152,6 +153,41 @@ async function getGpuInfo() {
   };
 }
 
+
+// GB10 / DGX Spark unified memory: nvidia-smi returns [N/A] for memory fields.
+// Fall back to /proc/meminfo (GPU "VRAM" IS system RAM on unified-memory devices).
+function unifiedMemoryFallback(): { total: number; free: number; used: number } | null {
+  try {
+    const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
+    const get = (key: string): number | null => {
+      const line = meminfo.split('\n').find(l => l.startsWith(key + ':'));
+      if (!line) return null;
+      const parts = line.split(/\s+/);
+      return parts.length > 1 ? parseInt(parts[1]) : null; // kB
+    };
+    const total = get('MemTotal');
+    const available = get('MemAvailable');
+    if (total === null || available === null) return null;
+    const used = Math.max(total - available, 0);
+    return { total, free: available, used };
+  } catch {
+    return null;
+  }
+}
+
+function fixGpuMemoryNaN<T extends { memory: { total: number; free: number; used: number }; utilization: { memory: number } }>(gpu: T): T {
+  const mems = [gpu.memory.total, gpu.memory.free, gpu.memory.used];
+  if (mems.some(v => isNaN(v)) || isNaN(gpu.utilization.memory)) {
+    const fb = unifiedMemoryFallback();
+    if (fb) {
+      const mb = (kb: number) => Math.round(kb / 1024);
+      gpu.memory = { total: mb(fb.total), free: mb(fb.free), used: mb(fb.used) };
+      gpu.utilization.memory = Math.round((fb.used / fb.total) * 100);
+    }
+  }
+  return gpu;
+}
+
 export async function GET() {
   try {
     const gpuInfo = await cached('gpu-info', getGpuInfo);
@@ -245,7 +281,7 @@ async function getGpuStats(isWindows: boolean) {
           speed: parseInt(fanSpeed) || 0, // Some GPUs might not report fan speed, default to 0
         },
       };
-    });
+    }).map(fixGpuMemoryNaN);
 
   return gpus;
 }

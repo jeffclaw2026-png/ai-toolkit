@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { spawn, execFile, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
@@ -34,6 +35,43 @@ const NV_WATCHDOG_MS = 15_000;
 const NV_BATCH_FLUSH_MS = 100;
 // Temperature refresh is decoupled from the tick (see refreshCpuTemp)
 const CPU_TEMP_REFRESH_MS = 5000;
+
+
+// GB10 / DGX Spark: unified memory - nvidia-smi reports [N/A] for memory fields.
+// Fall back to system memory (GPU "VRAM" IS system RAM on unified-memory devices).
+function unifiedMemoryFallback(): { total: number; free: number; used: number } | null {
+  try {
+
+    const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
+    const get = (key: string): number | null => {
+      const line = meminfo.split('\n').find(l => l.startsWith(key + ':'));
+      if (!line) return null;
+      const parts = line.split(/\s+/);
+      return parts.length > 1 ? parseInt(parts[1]) : null; // kB
+    };
+    const total = get('MemTotal');
+    const available = get('MemAvailable');
+    if (total === null || available === null) return null;
+    const used = Math.max(total - available, 0);
+    return { total, free: available, used }; // kB
+  } catch {
+    return null;
+  }
+}
+
+function fixGpuMemoryNaN(gpu: GpuInfo): GpuInfo {
+  const mems = [gpu.memory.total, gpu.memory.free, gpu.memory.used];
+  const utils = [gpu.utilization.memory];
+  if (mems.some(v => isNaN(v)) || utils.some(v => isNaN(v))) {
+    const fb = unifiedMemoryFallback();
+    if (fb) {
+      const mb = (kb: number) => Math.round(kb / 1024);
+      gpu.memory = { total: mb(fb.total), free: mb(fb.free), used: mb(fb.used) };
+      gpu.utilization.memory = Math.round((fb.used / fb.total) * 100);
+    }
+  }
+  return gpu;
+}
 
 function parseGpuLine(line: string): GpuInfo | null {
   const [
@@ -412,7 +450,7 @@ class SystemMonitor {
     this.nvStdoutBuffer = lines.pop() || '';
     for (const line of lines) {
       if (!line.trim()) continue;
-      const gpu = parseGpuLine(line);
+      const gpu = fixGpuMemoryNaN(parseGpuLine(line));
       if (!gpu) continue;
       this.nvEverGotLine = true;
       this.lastNvLineAt = Date.now();
@@ -453,8 +491,9 @@ class SystemMonitor {
       const gpus = stdout
         .trim()
         .split('\n')
-        .map(parseGpuLine)
+        .map(parseGpuLine).map(fixGpuMemoryNaN)
         .filter((gpu): gpu is GpuInfo => gpu !== null)
+        .map(fixGpuMemoryNaN)
         .sort((a, b) => a.index - b.index);
       this.latestGpu = { hasNvidiaSmi: true, isMac: false, gpus };
     } catch (err) {
